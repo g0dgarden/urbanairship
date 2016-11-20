@@ -32,7 +32,7 @@ func TestSuccessPush(t *testing.T) {
 		FakeDoPushRequest: func(_ context.Context, _ *Push) (*http.Response, error) {
 			// 成功時のレスポンス
 			body :=
-			`{
+				`{
 				"ok":true,"operation_id":"ef77412e-c336-4575-b480-b9ca33bb6964",
 				"push_ids":["5b9b1152-a4ac-4fa3-9e90-b699ac286de2"],
 				"message_ids":[],
@@ -70,7 +70,7 @@ func TestBadRequestForPush(t *testing.T) {
 		FakeDoPushRequest: func(_ context.Context, _ *Push) (*http.Response, error) {
 			// 失敗時のレスポンス
 			body :=
-			`{
+				`{
 				"ok":false,
 				"error":"Could not parse request body.",
 				"error_code":40000,
@@ -81,7 +81,7 @@ func TestBadRequestForPush(t *testing.T) {
 
 			res := &http.Response{
 				StatusCode: 400,
-				Body:	ioutil.NopCloser(strings.NewReader(body)),
+				Body:       ioutil.NopCloser(strings.NewReader(body)),
 			}
 			return res, nil
 		},

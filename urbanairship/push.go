@@ -3,10 +3,10 @@ package urbanairship
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"encoding/json"
 )
 
 // Push push APIにリクエストするJSONの構造体です

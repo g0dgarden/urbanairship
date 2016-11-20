@@ -3,11 +3,11 @@ package urbanairship
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
-	"fmt"
 
 	"github.com/pkg/errors"
 )
@@ -25,11 +25,11 @@ type UrbanAirship interface {
 
 // Client は UrbanAirship のAPIを扱うためのクライアント実装
 type Client struct {
-	Urban      UrbanAirship
-	BaseURL    *url.URL
-	HTTPClient *http.Client
+	Urban              UrbanAirship
+	BaseURL            *url.URL
+	HTTPClient         *http.Client
 	Username, Password string
-	MimeType   string
+	MimeType           string
 }
 
 // NewClient はUrbanAirshipへリクエストするClientを生成します。
@@ -86,7 +86,7 @@ func checkResponse(resp *http.Response, err error) (*http.Response, error) {
 	case 204:
 		return resp, nil
 	case 400:
-		return nil, errors.New("bad request")	// TODO: error時のbodyをキャッチする
+		return nil, errors.New("bad request") // TODO: error時のbodyをキャッチする
 	case 401:
 		return nil, errors.New("authentication failed")
 	case 404:
