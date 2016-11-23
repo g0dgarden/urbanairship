@@ -7,19 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
-// UrbanAirshipのインターフェースをみたすdummyのstruct
-type fakeClient struct {
-	// インターフェース埋め込み
-	UrbanAirship
+// Executorのインターフェースをみたすdummyのstruct
+type dummyClient struct {
 	FakeDoPushRequest func(ctx context.Context, body *Push) (*http.Response, error)
 }
 
 // doPushRequestのdummyの実装。偽装したダミーのレスポンスを返します。偽装することで、実際にHTTP通信をさせないでのテストが可能となります。
-func (c *fakeClient) doPushRequest(ctx context.Context, body *Push) (*http.Response, error) {
+func (c *dummyClient) doPushRequest(ctx context.Context, body *Push) (*http.Response, error) {
 	return c.FakeDoPushRequest(ctx, body)
 }
 
@@ -28,7 +25,7 @@ func TestSuccessPush(t *testing.T) {
 	assert := assert.New(t)
 
 	// mockの関数を差し込みレスポンスを偽装します。
-	fakeCli := &fakeClient{
+	dummyCli := &dummyClient{
 		FakeDoPushRequest: func(_ context.Context, _ *Push) (*http.Response, error) {
 			// 成功時のレスポンス
 			body :=
@@ -51,7 +48,7 @@ func TestSuccessPush(t *testing.T) {
 		PushIds: []string{"5b9b1152-a4ac-4fa3-9e90-b699ac286de2"},
 	}
 
-	client := Client{Urban: fakeCli}
+	client := Client{Urban: dummyCli}
 	resp, err := client.Push(context.Background(), &Push{})
 
 	assert.Nil(err)
@@ -60,53 +57,65 @@ func TestSuccessPush(t *testing.T) {
 }
 
 // push api からのレスポンスが 202以外の時に正しくエラーハンドリング出来ているか確認します。
-func TestBadRequestForPush(t *testing.T) {
+func TestRequestFailedForPush(t *testing.T) {
 	assert := assert.New(t)
 
 	// ----------------------------------------
-	// status code が202以外で返ってくるケース
+	// status code:401(Unauthorized	) で errorが返ってくるケース
 	// ----------------------------------------
-	fakeCli := &fakeClient{
+	dummyCli := &dummyClient{
 		FakeDoPushRequest: func(_ context.Context, _ *Push) (*http.Response, error) {
 			// 失敗時のレスポンス
 			body :=
 				`{
 				"ok":false,
 				"error":"Could not parse request body.",
-				"error_code":40000,
-				"details":{"error":"The key '' is not allowed in this context",
-				"path":"notification.",
-				"location":{"line":1,"column":46}},"operation_id":"dff10f45-685b-4b90-a719-7744bd24bc8f"
+				"error_code":40203,
+				"details":{"error":"'device_types' must be set"},
+				"operation_id":"a2a7f724-a301-49ac-ab26-e46b0252d582"
 			}`
 
 			res := &http.Response{
-				StatusCode: 400,
+				StatusCode: 401,
 				Body:       ioutil.NopCloser(strings.NewReader(body)),
 			}
 			return res, nil
 		},
 	}
 
-	client := Client{Urban: fakeCli}
+	client := Client{Urban: dummyCli}
 
-	expected := "status code 400 is not 202"
+	expected := "authentication failed"
 	resp, err := client.Push(context.Background(), &Push{})
 
+	assert.Nil(resp)
+	assert.Equal(expected, err.Error())
+
 	// ----------------------------------------
-	// errorが返ってくるケース
+	// status code:400(bad request)で errorJsonがパースされて返ってくるケース
 	// ----------------------------------------
-	fakeCli = &fakeClient{
-		FakeDoPushRequest: func(ctx context.Context, body *Push) (*http.Response, error) {
+	dummyCli = &dummyClient{
+		FakeDoPushRequest: func(_ context.Context, _ *Push) (*http.Response, error) {
+			body :=
+				`{
+				"ok":false,
+				"error":"Could not parse request body.",
+				"error_code":40530,
+				"details":{"error":"Unrecognized device type 'xxx'","path":"device_types[0]","location":{"line":1,"column":199}},
+				"operation_id":"7d312199-a40f-4a7d-9d25-ecb9ec24e917"}
+			`
+
 			res := &http.Response{
 				StatusCode: 400,
+				Body:       ioutil.NopCloser(strings.NewReader(body)),
 			}
-			return res, errors.New("エラーだよー")
+			return res, parseErr(res)
 		},
 	}
 
-	client.Urban = fakeCli
+	client.Urban = dummyCli
 
-	expected = "エラーだよー"
+	expected = "urban error response. error_code: 40530 error :Could not parse request body. details_error :Unrecognized device type 'xxx'"
 	resp, err = client.Push(context.Background(), &Push{})
 
 	assert.Nil(resp)
@@ -114,7 +123,8 @@ func TestBadRequestForPush(t *testing.T) {
 
 }
 
-// 必須パラメーターをチェックするテストケースです。未設定の場合、対応したerror が返ってくることを確認します。
+// 必須パラメーターをチェックするテストケースです。
+// 未設定の場合、対応したerror が返ってくることを確認します。
 func TestRequiredParametersForPush(t *testing.T) {
 	assert := assert.New(t)
 	client := Client{}

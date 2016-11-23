@@ -65,7 +65,7 @@ func NewPush(audience *Audience, notification *Notification, deviceTypes []strin
 
 // doPushRequest はUrbanAirshipのpushAPIへリクエストする実装です
 // See: http://docs.urbanairship.com/api/ua.html#push
-func (c *Client) doPushRequest(ctx context.Context, body *Push) (*http.Response, error) {
+func (c *UrbanAirship) doPushRequest(ctx context.Context, body *Push) (*http.Response, error) {
 	endpoint := "/api/push"
 
 	jsonBody, err := json.Marshal(body)
@@ -78,7 +78,7 @@ func (c *Client) doPushRequest(ctx context.Context, body *Push) (*http.Response,
 		return nil, err
 	}
 
-	res, err := checkResponse(c.HTTPClient.Do(req))
+	res, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("faild urban push request. err:%v", err)
 	}
@@ -92,7 +92,6 @@ func (c *Client) Push(ctx context.Context, body *Push) (*PushResponse, error) {
 	if ctx == nil {
 		return nil, errors.New("missing context")
 	}
-
 	if body == nil {
 		return nil, errors.New("missing urban request body")
 	}
@@ -107,5 +106,4 @@ func (c *Client) Push(ctx context.Context, body *Push) (*PushResponse, error) {
 		return nil, err
 	}
 	return &push, nil
-
 }

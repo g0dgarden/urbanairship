@@ -1,28 +1,56 @@
 package urbanairship
 
 import (
+	"errors"
+	"io/ioutil"
 	"net/http"
-	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewClient(t *testing.T) {
+func TestCheckResponse(t *testing.T) {
 	assert := assert.New(t)
 
-	baseURL, _ := url.ParseRequestURI("https://go.urbanairship.com")
-	expected := Client{
-		BaseURL:    baseURL,
-		HTTPClient: http.DefaultClient,
-		MimeType:   "application/vnd.urbanairship+json; version=3",
+	body :=
+		ioutil.NopCloser(strings.NewReader(
+			`{
+			"error":"hoge",
+			"error_code":40530,
+			"details":{"error":"fuga"}
+		}`))
+
+	cases := []struct {
+		inResponse  *http.Response
+		inErr       error
+		outResponse *http.Response
+		outErr      error
+	}{
+
+		{inResponse: &http.Response{StatusCode: 200, Status: ""}, inErr: nil, outResponse: &http.Response{StatusCode: 200}, outErr: nil},
+		{inResponse: &http.Response{StatusCode: 201, Status: ""}, inErr: nil, outResponse: &http.Response{StatusCode: 201}, outErr: nil},
+		{inResponse: &http.Response{StatusCode: 202, Status: ""}, inErr: nil, outResponse: &http.Response{StatusCode: 202}, outErr: nil},
+		{inResponse: &http.Response{StatusCode: 204, Status: ""}, inErr: nil, outResponse: &http.Response{StatusCode: 204}, outErr: nil},
+		{inResponse: &http.Response{StatusCode: 400, Status: "", Body: body}, inErr: nil, outResponse: nil, outErr: errors.New("urban error response. error_code: 40530 error :hoge details_error :fuga")},
+		{inResponse: &http.Response{StatusCode: 401, Status: ""}, inErr: nil, outResponse: nil, outErr: errors.New("authentication failed")},
+		{inResponse: &http.Response{StatusCode: 404, Status: ""}, inErr: nil, outResponse: nil, outErr: errors.New("resource not found")},
+		{inResponse: &http.Response{StatusCode: 500, Status: "エラーだよ"}, inErr: nil, outResponse: nil, outErr: errors.New("client: エラーだよ")},
 	}
 
-	client, err := NewClient(nil)
-	assert.Nil(err)
+	for _, v := range cases {
+		res, err := checkResponse(v.inResponse, v.inErr)
 
-	assert.Equal(expected.BaseURL, client.BaseURL)
-	assert.Equal(expected.HTTPClient, client.HTTPClient)
-	assert.Equal(expected.MimeType, client.MimeType)
+		if v.outResponse != nil {
+			assert.Equal(res, v.outResponse)
+		} else {
+			assert.Equal((*http.Response)(nil), res)
+		}
 
+		if v.inResponse.StatusCode == 400 {
+			assert.EqualError(err, v.outErr.Error())
+		} else {
+			assert.Equal(err, v.outErr)
+		}
+	}
 }
